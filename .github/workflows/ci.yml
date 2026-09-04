@@ -1,0 +1,5 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  ci:
+    uses: Sandbox-IA-FHU/.github/.github/workflows/reusable-python-ci.yml@main

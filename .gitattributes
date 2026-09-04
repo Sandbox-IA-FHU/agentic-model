@@ -1,0 +1,5 @@
+# Normalise les fins de ligne : LF dans le dépôt, quel que soit le poste.
+# Ce fichier ne s'hérite PAS du dépôt .github de l'organisation : seuls les
+# fichiers de communauté le sont. Sans lui, un poste Windows réécrit tout le
+# dépôt en CRLF au premier commit.
+* text=auto eol=lf
