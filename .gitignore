@@ -1,0 +1,29 @@
+# Donnees reelles : jamais dans le depot. Voir DONNEES.md.
+data/
+logs/
+*.log
+*.csv
+*.tsv
+*.parquet
+*.xlsx
+*.xls
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets
+.env
+
+# Traces d'execution : un fichier de trace RAG contient le contenu des
+# documents recuperes.
+traces/
+
+# Les jeux d'evaluation sont des donnees inventees : eux vivent dans le depot.
+!evaluations/jeux/**
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/

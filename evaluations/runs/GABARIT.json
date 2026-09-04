@@ -1,0 +1,37 @@
+{
+  "_lisez_moi": [
+    "Gabarit de fichier de run. Les valeurs sont nulles VOLONTAIREMENT :",
+    "un run est le resultat d'une execution reelle. Un chiffre invente dans",
+    "un depot modele finit recopie dans un vrai projet, puis dans une",
+    "presentation.",
+    "scripts/evaluate.py ecrit un fichier a ce format, nomme",
+    "AAAA-MM-JJ-<etiquette>.json. Ce gabarit n'est pas lu par le code.",
+    "Retirer ce champ des vrais fichiers de run."
+  ],
+  "date": null,
+  "modele": null,
+  "prompt": null,
+  "jeu": null,
+  "nb_cas": null,
+  "parametres": {
+    "max_iterations": null,
+    "max_output_tokens": null,
+    "approbation": "refus"
+  },
+  "resultats": {
+    "tache_reussie": null,
+    "outil_interdit_appele": null,
+    "limite_iterations_atteinte": null,
+    "dans_le_budget_etapes": null,
+    "etapes_medianes": null,
+    "etapes_max": null,
+    "jetons_entree": null,
+    "jetons_sortie": null,
+    "cout_total_usd": null,
+    "cout_par_tache_usd": null,
+    "latence_mediane_s": null,
+    "latence_p95_s": null,
+    "par_type": {}
+  },
+  "commentaire": "Le champ qu'on relit six mois plus tard. Un taux de reussite ne dit pas si les echecs sont des reponses fausses, des plafonds atteints ou des outils interdits appeles : c'est ici qu'on l'ecrit."
+}
