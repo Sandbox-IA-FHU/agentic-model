@@ -5,7 +5,7 @@
 # Pour monter de version, relever le tag ET l'empreinte réellement publiés.
 FROM python:3.13.17-slim-trixie@sha256:fe14fd57a4c0361110eaa0c284112b189750bcb43fb04bb5d1ee7b7744027ccf
 
-COPY --from=ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff /uv /uvx /bin/
 
 # L'environnement virtuel vit hors de /app : compose monte le dépôt sur /app
 # pour les tests et le lint, et ce montage ne doit pas le masquer.
