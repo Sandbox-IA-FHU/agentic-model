@@ -1,14 +1,21 @@
 """Lance l'évaluation de l'agent et écrit un fichier de run daté.
 
+    uv run --env-file .env python scripts/evaluate.py --limite 3
     uv run --env-file .env python scripts/evaluate.py --etiquette prompt-v1
 
-Deux points sur lesquels ce script ne transige pas :
+Le LLM est partagé entre plusieurs projets : un run complet occupe le serveur
+pour tout le monde. Toujours commencer par `--limite 3`.
+
+Trois points sur lesquels ce script ne transige pas :
 
 - **La validation est toujours en mode refus.** Un jeu d'évaluation ne doit
   jamais pouvoir déclencher une action réelle, et un run qui attend une réponse
   humaine ne se termine pas.
 - **Chaque cas repart d'un magasin de notes neuf.** Un cas qui modifie l'état
   fausserait tous les suivants, et le score dépendrait de l'ordre des cas.
+- **Le modèle est consigné en entier** : nom exposé, modèle réel déclaré par
+  le serveur, révision et niveau de réflexion. Le nom exposé est stable alors
+  que le modèle derrière peut changer.
 """
 
 import argparse
@@ -19,13 +26,16 @@ from datetime import date
 from pathlib import Path
 
 from agent.approval import DenyAll
-from agent.client import AGENT_MODEL, MAX_OUTPUT_TOKENS, AnthropicAgentClient
+from agent.client import (
+    MAX_OUTPUT_TOKENS,
+    REASONING_EFFORT,
+    REASONING_EFFORTS,
+    OpenAICompatibleClient,
+)
 from agent.config import loadConfig
-from agent.costs import PRICES_DATE, estimateCostUsd
 from agent.errors import ConfigError, ModelCallError, NoteStoreError
 from agent.evaluation import gradeCase, loadTaskSet, summarize
 from agent.loop import MAX_ITERATIONS, runAgent
-from agent.models import Usage
 from agent.toolbox import NoteStore, buildToolbox
 from agent.tools import ToolRegistry
 
@@ -50,6 +60,12 @@ def buildParser() -> argparse.ArgumentParser:
         dest="maxIterations",
     )
     parser.add_argument(
+        "--reflexion",
+        choices=REASONING_EFFORTS,
+        default=REASONING_EFFORT,
+        help=f"Niveau de réflexion du modèle (défaut : {REASONING_EFFORT}).",
+    )
+    parser.add_argument(
         "--limite",
         type=int,
         default=None,
@@ -68,6 +84,14 @@ def main() -> int:
         print(f"Configuration : {error}", file=sys.stderr)
         return 1
 
+    if not config.modelRevision:
+        print(
+            "Configuration : LLM_MODEL_REVISION est vide. Un run doit consigner "
+            "la révision du modèle ; la demander à Florian (responsable).",
+            file=sys.stderr,
+        )
+        return 1
+
     logging.basicConfig(level=config.logLevel, format="%(levelname)s %(message)s")
 
     try:
@@ -80,11 +104,27 @@ def main() -> int:
     if args.limite is not None:
         cases = cases[: args.limite]
 
-    client = AnthropicAgentClient(apiKey=config.apiKey)
+    client = OpenAICompatibleClient(
+        baseUrl=config.baseUrl,
+        model=config.model,
+        apiKey=config.apiKey,
+        reasoningEffort=args.reflexion,
+    )
+    try:
+        servedModel = client.servedModel()
+    except ModelCallError as error:
+        print(f"Modèle : {error}", file=sys.stderr)
+        return 1
     systemPrompt = DEFAULT_PROMPT.read_text(encoding="utf-8")
 
-    print(f"{len(cases)} cas, modèle {AGENT_MODEL}, prompt {DEFAULT_PROMPT.name}.")
-    print(f"Jusqu'à {args.maxIterations} appels modèle par cas. Validation : refus.")
+    print(
+        f"{len(cases)} cas, modèle {config.model} ({servedModel}), "
+        f"réflexion {args.reflexion}, prompt {DEFAULT_PROMPT.name}."
+    )
+    print(
+        f"Jusqu'à {args.maxIterations * len(cases)} appels au LLM partagé. "
+        "Validation : refus."
+    )
 
     results = []
     for case in cases:
@@ -117,29 +157,23 @@ def main() -> int:
         )
 
     summary = summarize(results)
-    totalUsage = Usage(
-        inputTokens=int(summary["jetons_entree"]),
-        outputTokens=int(summary["jetons_sortie"]),
-    )
-    totalCost = estimateCostUsd(totalUsage, AGENT_MODEL)
-
     run = {
         "date": date.today().isoformat(),
-        "modele": AGENT_MODEL,
+        "modele": {
+            "nom_expose": config.model,
+            "modele_reel": servedModel,
+            "revision": config.modelRevision,
+        },
         "prompt": f"prompts/{DEFAULT_PROMPT.name}",
         "jeu": str(args.jeu).replace("\\", "/"),
         "nb_cas": len(results),
         "parametres": {
             "max_iterations": args.maxIterations,
             "max_output_tokens": MAX_OUTPUT_TOKENS,
+            "reflexion": args.reflexion,
             "approbation": "refus",
         },
-        "resultats": {
-            **summary,
-            "cout_total_usd": round(totalCost, 4),
-            "cout_par_tache_usd": round(totalCost / max(len(results), 1), 5),
-            "tarifs_releves_le": PRICES_DATE,
-        },
+        "resultats": summary,
         "commentaire": "",
     }
 
@@ -157,7 +191,11 @@ def main() -> int:
         f"Étapes médianes / max : {summary['etapes_medianes']} / "
         f"{summary['etapes_max']}"
     )
-    print(f"Coût total            : {totalCost:.4f} USD")
+    print(f"Jetons par tâche      : {summary['jetons_par_tache']}")
+    print(
+        f"Latence médiane / p95 : {summary['latence_mediane_s']} s / "
+        f"{summary['latence_p95_s']} s"
+    )
     print()
     print(f"Run écrit dans {runPath}")
     print("Remplir le champ « commentaire » avant de commiter.")

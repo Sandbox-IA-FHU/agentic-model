@@ -34,7 +34,13 @@ ne fait échouer que la vie réelle.
 
 ## 3. Le contrôle méthode
 
-- Les identifiants de modèle sont-ils dans une constante, pas en ligne ?
+- L'adresse et le nom du modèle viennent-ils de la configuration
+  (`LLM_BASE_URL`, `LLM_MODEL`), jamais en dur ? Aucune adresse de serveur
+  n'apparaît-elle dans le diff, même en exemple ?
+- La réflexion du modèle reste-t-elle hors de l'historique, des logs et des
+  traces ?
+- Si `compose.yaml` a changé : `docker compose config -q` passe-t-il, le
+  service reste-t-il préfixé par le projet, sans GPU ni port ?
 - Tout chiffre annoncé porte-t-il sa date et son nombre de cas ?
 - Si le prompt a changé : les deux runs existent-ils, avant et après ?
 - Si une conclusion est tirée : l'écart est-il assez grand pour être
@@ -63,3 +69,6 @@ constantes, `PascalCase` pour les classes, docstrings en français,
   d'où vient la demande, les choix faits et pourquoi, ce qui a été
   volontairement laissé de côté.
 - Un rappel de mettre à jour la date de l'en-tête du README si le dépôt a bougé.
+- Un rappel du circuit : le travail se pousse sur `staging` ; la seule PR
+  est `staging` → `main`, approuvée et fusionnée par Florian, en merge
+  commit.

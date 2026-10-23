@@ -1,32 +1,135 @@
-# Consignes Claude Code — agentic-model
+# Agent à outils (modèle) — consignes Claude Code
 
-Complète le `CLAUDE.md` de l'organisation (dépôt `.github`), il ne l'annule
-pas. Les conventions d'écriture Python sont dans
+Les règles communes de l'organisation (`CLAUDE.md` du dépôt `.github`)
+s'appliquent : français, aucune donnée réelle, aucune clé, aucun nom de
+client, `uv` uniquement, chiffres datés. Ce fichier les complète pour ce
+dépôt. Les conventions d'écriture Python sont dans
 [CONVENTIONS-PYTHON.md](CONVENTIONS-PYTHON.md) — à lire avant toute
 modification de code.
 
-## Ce qu'est ce dépôt
+**Ce dépôt est public.** Tout ce que tu écris dans un fichier, un commit, une
+branche ou une PR est lisible par n'importe qui, pour toujours. Aucune donnée
+réelle, aucune clé, aucun nom de client, aucune adresse ni nom de serveur.
 
-Un **modèle** d'agent à outils. Le code est volontairement minuscule : ce qu'il
-transmet, c'est une méthode et trois garde-fous, pas une bibliothèque. Une
-modification qui rend l'agent plus capable mais moins lisible est une
-régression.
+## Horaires du serveur de staging : à vérifier AVANT chaque tâche
+
+Ne s'applique que si la session tourne **sur le serveur de staging**.
+
+Le serveur est allumé **en continu du lundi 7h00 au vendredi 20h00**. Ces
+horaires sont **provisoires** : Florian (responsable) communique tout
+changement. À 20h00 le vendredi, il s'arrête d'un coup : une commande en
+cours est tuée, et ce qui n'est pas poussé reste inaccessible jusqu'au lundi
+7h00.
+
+Avant toute tâche (commandes, build d'image, tests, évaluation, série de
+modifications), et de nouveau avant chaque étape longue :
+
+1. Lancer `date` pour connaître le jour et l'heure réels (heure de Paris).
+   Ne jamais se fier à une heure supposée.
+2. Estimer la durée de la tâche entière, **commit et push compris**, en
+   prenant l'estimation haute.
+3. Comparer l'heure de fin estimée à la prochaine coupure, le vendredi
+   20h00 :
+   - **fin avant vendredi 19h30** : on y va, sans prévenir. Du lundi au
+     jeudi, c'est le cas de toute tâche normale ;
+   - **fin entre vendredi 19h30 et 19h50** : ne rien lancer. Donner l'heure,
+     la durée estimée et la fin prévue, et demander s'il faut y aller ou
+     attendre lundi ;
+   - **fin après vendredi 19h50** : bloquer, sans rien lancer. Expliquer
+     pourquoi et proposer de reprendre lundi.
+
+Jamais de tâche en arrière-plan qui finirait après vendredi 19h50. Si une
+tâche est reportée, commiter et pousser d'abord ce qui est stable. Le
+vendredi, tout ce qui est stable est poussé avant de s'arrêter. Jour férié ou
+horaire inhabituel : demander avant de supposer que le serveur est allumé.
+
+## Le serveur : ce qui est permis
+
+- Pas de `sudo`, pas d'accès au Docker du serveur : on utilise **son propre
+  Docker rootless**. Tout tourne en conteneur, rien ne s'installe au niveau du
+  système (`uv` n'y est pas : passer par `docker compose run`).
+- **Jamais d'accès direct au GPU**, jamais de bibliothèque de modèle locale
+  (PyTorch, transformers…) pour contourner l'API. L'agent appelle le LLM, point.
+- Ne pas toucher aux conteneurs des autres.
+- **Le dépôt de production est hors d'atteinte** : pas d'accès, pas de
+  tentative d'accès. L'import est fait par Florian.
+
+## Périmètre et Git
+
+- Travail sur la branche **`staging`** : commits et push directs, jamais de
+  force-push, jamais de suppression de branche.
+- `main` ne reçoit que des PR `staging` → `main`, **approuvées et fusionnées
+  par Florian**, en merge commit. Ne jamais fusionner toi-même.
+- Pousser au fil de l'eau, et toujours avant de s'arrêter un vendredi.
+- Commits en français, à l'impératif, sans préfixe.
+
+## Le projet
+
+À remplir au premier commit d'un projet dérivé : la question posée, pour qui,
+les outils de l'agent et lesquels sont sensibles. Ici, c'est un **modèle**
+d'agent à outils. Le code est volontairement minuscule : ce qu'il transmet,
+c'est une méthode et trois garde-fous, pas une bibliothèque. Une modification
+qui rend l'agent plus capable mais moins lisible est une régression.
+
+## Contraintes techniques
+
+- LLM local, API compatible OpenAI. Adresse dans `LLM_BASE_URL` (fournie par
+  Florian), jamais en dur. Nom exposé stable : `LLM_MODEL=altoneo-llm`.
+- Révision du modèle dans `LLM_MODEL_REVISION`, jamais dans le dépôt :
+  obligatoire pour une évaluation.
+- Appels d'outils au format `tools` / `tool_calls`. S'ils sont refusés par le
+  serveur, le signaler à Florian ; **ne jamais** les remplacer par une analyse
+  du texte libre.
+- Réflexion : `REASONING_EFFORT = "low"` dans `client.py`. Elle n'entre jamais
+  dans l'historique, la trace ou un fichier commité (`test_client.py`).
+- `compose.yaml` : service préfixé par le projet, `TZ: Europe/Paris`, image
+  figée par tag et empreinte, pas de GPU, pas de port, utilisateur réglé par
+  `AGENT_UID` / `AGENT_GID`.
+
+## Où en est-on
+
+- 2026-10-23 — modèle branché sur le LLM local (client compatible OpenAI,
+  réflexion `low` par défaut), voie conteneur ajoutée. Aucun run de référence
+  sur ce modèle.
+
+## En suspens (décision de Florian)
+
+- Réflexion `off` ou `low` pour un agent : à trancher sur mesure, avec deux
+  runs qui ne diffèrent que par `--reflexion`.
+
+## À travailler
+
+- Run de référence complet sur le jeu d'évaluation, une fois `--limite 3`
+  passé sans erreur.
+
+---
 
 ## Commandes
+
+Sur un poste :
 
 ```bash
 uv sync                      # installation
 uv run ruff format .         # formatage
 uv run ruff check .          # lint
-uv run pytest                # tests, sans réseau ni clé
+uv run pytest                # tests, sans réseau ni serveur
 uv run --env-file .env python scripts/run_agent.py "une tâche"
 uv run --env-file .env python scripts/evaluate.py --limite 3
 ```
 
-Aucun test n'appelle un fournisseur de modèle. Les scénarios d'agent sont
-rejoués par `ScriptedClient` dans `tests/conftest.py` : une liste de tours
-préparés, rendue dans l'ordre. C'est ce qui permet de tester des boucles
-entières — plafond atteint, action refusée, outil en erreur — hors ligne.
+Sur le serveur (rootless) ou après import :
+
+```bash
+docker compose run --rm agent-modele pytest
+docker compose run --rm agent-modele ruff check .
+docker compose run --rm agent-modele python scripts/evaluate.py --limite 3
+```
+
+Aucun test n'appelle le LLM. Les scénarios d'agent sont rejoués par
+`ScriptedClient` dans `tests/conftest.py` : une liste de réponses préparées au
+format OpenAI, rendues dans l'ordre et lues par le même analyseur que le vrai
+client. C'est ce qui permet de tester des boucles entières — plafond atteint,
+action refusée, outil en erreur — hors ligne.
 
 ## Architecture, en une phrase par module
 
@@ -34,13 +137,12 @@ entières — plafond atteint, action refusée, outil en erreur — hors ligne.
 |---|---|
 | `models.py` | Structures, dont `Trace` — ce qu'on relit et ce qu'on mesure. |
 | `config.py` | Seul endroit qui lit `os.environ`. Valide et échoue au démarrage. |
-| `client.py` | Seul module qui connaît le SDK. Protocole `AgentClient`. |
+| `client.py` | Seul module qui connaît le SDK. Protocole `AgentClient`. Écarte la réflexion. |
 | `tools.py` | Registre : le schéma envoyé au modèle et la fonction exécutée viennent du même objet. |
 | `toolbox.py` | Les quatre outils d'exemple, dont l'évaluateur arithmétique sans `eval`. |
 | `approval.py` | Politiques de validation. Défaut : refus. |
 | `loop.py` | `runAgent` — la boucle, plafonnée. |
-| `costs.py` | Jetons → dollars, avec des tarifs datés. |
-| `evaluation.py` | Notation et agrégation. |
+| `evaluation.py` | Notation et agrégation : réussite, tours, jetons, latence. |
 
 ## Les quatre choses à ne pas casser
 
@@ -66,41 +168,40 @@ rester.
 
 ---
 
-## Le coût d'un agent n'est pas linéaire
+## La charge d'un agent n'est pas linéaire
 
 C'est le point le plus mal anticipé sur ce type de projet, et c'est de
 l'arithmétique, pas une opinion.
 
 L'API est **sans état** : à chaque tour, la boucle renvoie tout l'historique.
 Si `B` est la partie fixe (prompt système + schémas d'outils + tâche) et `C` ce
-qu'un tour ajoute (réponse du modèle + résultats d'outils), le total d'entrée
-sur `N` tours vaut :
+qu'un tour ajoute (réponse du modèle + résultats d'outils), le total de jetons
+d'entrée sur `N` tours vaut :
 
 ```
 N × B  +  C × N(N−1)/2
 ```
 
-Pour `N = 8` : la partie fixe est facturée **8 fois**, et le terme variable
+Pour `N = 8` : la partie fixe est envoyée **8 fois**, et le terme variable
 vaut **28 fois** le contenu d'un tour, pas 8. Un agent qui met six tours au
-lieu de deux ne coûte pas trois fois plus cher : il coûte nettement plus.
+lieu de deux ne consomme pas trois fois plus : il consomme nettement plus.
 
-Trois conséquences pratiques :
+Le LLM tourne sur un GPU déjà payé : il n'y a pas de facture à l'appel. Mais
+il est **partagé** entre plusieurs projets, et chaque jeton qu'un agent lui
+fait traiter est du temps pris aux autres. Trois conséquences pratiques :
 
-- **Le nombre de tours est une métrique de coût de premier ordre**, pas une
-  curiosité. `etapes_medianes` et `etapes_max` sont dans le fichier de run pour
-  ça. Faire passer la médiane de 4 à 3 vaut souvent mieux que n'importe quelle
-  optimisation de prompt.
+- **Le nombre de tours est une métrique de premier ordre**, pas une
+  curiosité. `etapes_medianes`, `etapes_max` et `jetons_par_tache` sont dans
+  le fichier de run pour ça. Faire passer la médiane de 4 à 3 vaut souvent
+  mieux que n'importe quelle optimisation de prompt.
 - **Faire regrouper les appels d'outils indépendants** est le gain le plus
   simple : deux notes lues dans le même tour, c'est un aller-retour au lieu de
-  deux. Le prompt le demande déjà ; `test_parallelToolResultsGoInASingleMessage`
-  vérifie que la boucle ne casse pas cette possibilité en éclatant les
-  résultats sur plusieurs messages.
-- **La partie fixe est un candidat au cache de prompt.** Prompt système et
-  schémas d'outils sont identiques d'un tour à l'autre : c'est exactement le
-  préfixe stable qu'un cache sait servir. Ce n'est pas implémenté ici pour
-  garder la boucle lisible ; si un projet dérivé en a besoin, c'est le premier
-  levier à mesurer, et il faut vérifier les conditions et le tarif du
-  fournisseur **à la date du jour** avant d'annoncer un gain.
+  deux. Le prompt le demande déjà ;
+  `test_parallelToolResultsShareOneRoundTrip` vérifie que la boucle ne casse
+  pas cette possibilité en étalant les résultats sur plusieurs tours.
+- **La réflexion se paie en jetons de sortie et en latence.** Elle est
+  comptée dans `jetons_sortie`. Un niveau plus élevé n'est justifié que par
+  une mesure qui montre un gain de réussite.
 
 Ne convertis jamais un nombre de mots en jetons avec un ratio de tête. Le
 comptage se lit dans `usage` après un vrai appel, et il est déjà accumulé sur
@@ -143,8 +244,8 @@ la mauvaise réponse dans deux cas sur trois :
 
 - **Il boucle** — voir plus haut, c'est le résultat d'outil qu'il faut corriger.
 - **La tâche demande plus d'étapes que le plafond** — légitime. C'est alors une
-  décision explicite, avec le coût recalculé selon la formule ci-dessus, pas un
-  chiffre qu'on monte parce que ça bloque.
+  décision explicite, avec la charge recalculée selon la formule ci-dessus, pas
+  un chiffre qu'on monte parce que ça bloque.
 - **Il explore sans but** — il lit tout « au cas où ». C'est le prompt, section
   « il ne continue pas à explorer au cas où ».
 
@@ -168,9 +269,10 @@ d'outils les borne.
 
 ### L'agent réessaie après un refus de validation
 
-C'est le prompt, et c'est un vrai problème de coût : chaque nouvelle tentative
-est un tour complet. `REFUSAL_MESSAGE` dans `approval.py` le lui dit déjà — si
-le comportement persiste, c'est là qu'il faut renforcer, pas ailleurs.
+C'est le prompt, et c'est un vrai problème de charge : chaque nouvelle
+tentative est un tour complet. `REFUSAL_MESSAGE` dans `approval.py` le lui dit
+déjà — si le comportement persiste, c'est là qu'il faut renforcer, pas
+ailleurs.
 
 ---
 
@@ -178,13 +280,13 @@ le comportement persiste, c'est là qu'il faut renforcer, pas ailleurs.
 
 Point systématiquement oublié en revue.
 
-Le texte de `ToolSpec.description` part chez le fournisseur à **chaque tour**,
-au même titre que le prompt système. Trois conséquences :
+Le schéma de chaque outil, description comprise, part vers le LLM à **chaque
+tour**, au même titre que le prompt système. Trois conséquences :
 
 1. **Modifier une description invalide les runs passés**, exactement comme
    modifier le prompt. Il faut un nouveau run de référence, et le dire.
-2. Une description bavarde est facturée à chaque tour de chaque tâche. La
-   formule de coût plus haut s'applique aussi à elle.
+2. Une description bavarde est envoyée à chaque tour de chaque tâche. La
+   formule de charge plus haut s'applique aussi à elle.
 3. Une description est le bon endroit pour dire qu'une action est irréversible
    et soumise à validation — le modèle peut alors en tenir compte **avant** de
    demander l'action, pas seulement après un refus. C'est ce que vérifie
@@ -199,7 +301,7 @@ au même titre que le prompt système. Trois conséquences :
 | Qu'il cesse de réessayer après un refus | oui | — |
 | Qu'il n'obéisse pas à une note empoisonnée | réduit la fréquence | **ne garantit rien** |
 | Qu'aucune action irréversible n'ait lieu sans accord | non | `isSensitive` + `approval` |
-| Que la facture soit bornée | non | `MAX_ITERATIONS` |
+| Que la charge du serveur soit bornée | non | `MAX_ITERATIONS` |
 | Qu'aucun code arbitraire ne s'exécute | non | l'analyseur de `calculate` |
 
 La ligne à retenir : **une garantie qui repose sur une phrase de prompt n'en
@@ -237,9 +339,11 @@ Dans cet ordre, et le premier est éliminatoire :
    sur moins de cas qu'annoncé.
 3. `tache_reussie`, **et son découpage par type**. Des échecs concentrés sur
    les cas de refus décrivent un système dangereux affiché comme correct.
-4. `etapes_medianes` / `etapes_max` — le coût, et le meilleur gisement
-   d'économies.
-5. Coût, latence, avec la date de relevé des tarifs.
+4. `etapes_medianes` / `etapes_max` / `jetons_par_tache` — la charge, et le
+   meilleur gisement d'économies.
+5. Latence médiane et p95, et le bloc `modele` : nom exposé, modèle réel,
+   révision. Deux runs ne se comparent que si ce bloc et la `reflexion` sont
+   identiques (sauf si c'est justement le paramètre étudié).
 
 ## Ce qu'on attend d'une session ici
 
@@ -253,31 +357,34 @@ courante sur un agent.
 **Une modification de prompt — ou de description d'outil — se mesure.** Un run
 avant, un run après, un seul paramètre changé.
 
-**Prévenir du coût avant de lancer une évaluation.** Sur 21 cas et
-`MAX_ITERATIONS = 8`, c'est jusqu'à 168 appels modèle, pas 21. Proposer
-`--limite 3` d'abord.
+**Prévenir de la charge avant de lancer une évaluation.** Sur 21 cas et
+`MAX_ITERATIONS = 8`, c'est jusqu'à 168 appels au LLM partagé, pas 21.
+Proposer `--limite 3` d'abord. Sur le serveur, appliquer aussi la règle des
+horaires.
 
 **Ne pas conclure sur un écart faible.** Sur 21 cas, deux cas qui basculent
 font 10 points. Traduis toujours un écart en nombre de cas.
 
 **Ne pas ajouter de dépendance** sans raison écrite. En particulier : pas de
-framework d'agents, pas de bibliothèque d'orchestration « pour voir ». Le
-`tool_runner` du SDK est un choix raisonnable sur un vrai projet — mais c'est
-une décision à écrire dans le README, pas un glissement.
+framework d'agents, pas de bibliothèque d'orchestration « pour voir », pas de
+bibliothèque de modèle locale.
 
-**Ne jamais inventer un chiffre.** Les tarifs de `costs.py` portent leur date
-de relevé ; les mettre à jour, c'est aussi mettre à jour la date.
+**Ne jamais inventer un chiffre.** Performances du modèle, taille de contexte,
+débit du serveur : si la valeur n'est pas mesurée ou vérifiée dans la
+session, le dire au lieu de l'écrire.
 
 ## Ce qui ne va jamais dans le dépôt
 
-Une donnée réelle, une clé, un nom de client, un notebook avec ses sorties.
+Une donnée réelle, une clé, un nom de client, une adresse ou un nom de
+serveur, un notebook avec ses sorties.
 
 Attention particulière ici : une **trace d'agent contient le contenu de tout ce
 que l'agent a lu**, résultats d'outils compris. C'est la trace la plus riche —
 donc la plus dangereuse — des deux modèles de l'organisation. Elle ne se
 commite jamais, `traces/` est dans `.gitignore`, et `summarizeTrace` existe
-précisément pour n'afficher que des noms d'outils et des compteurs. Test :
-`test_traceSummaryLeaksNoContent`.
+précisément pour n'afficher que des noms d'outils et des compteurs. Tests :
+`test_traceSummaryLeaksNoContent`, et pour la réflexion du modèle
+`test_reasoningNeverReachesHistoryOrTrace`.
 
 ## Commandes et sous-agents
 

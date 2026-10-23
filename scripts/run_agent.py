@@ -6,9 +6,9 @@ Par défaut, toute action sensible est **refusée** sans rien demander. Pour êt
 interrogé à la place, mettre `APPROBATION=console` dans `.env` ou passer
 `--approbation console`.
 
-Ce script affiche un résumé de trace : noms d'outils, compteurs, coût. Jamais
-le contenu des notes lues — une trace complète contient le contenu métier,
-intégralement.
+Ce script affiche un résumé de trace : noms d'outils, compteurs, jetons,
+latence. Jamais le contenu des notes lues ni la réflexion du modèle — une
+trace complète contient le contenu métier, intégralement.
 """
 
 import argparse
@@ -17,9 +17,8 @@ import sys
 from pathlib import Path
 
 from agent.approval import ConsoleApproval, DenyAll
-from agent.client import AGENT_MODEL, AnthropicAgentClient
+from agent.client import REASONING_EFFORT, OpenAICompatibleClient
 from agent.config import APPROVAL_CONSOLE, VALID_APPROVAL_MODES, loadConfig
-from agent.costs import estimateCostUsd
 from agent.errors import ConfigError, ModelCallError, NoteStoreError
 from agent.loop import MAX_ITERATIONS, runAgent, summarizeTrace
 from agent.models import STOP_ITERATION_LIMIT
@@ -75,14 +74,19 @@ def main() -> int:
     mode = args.approbation or config.approvalMode
     approval = ConsoleApproval() if mode == APPROVAL_CONSOLE else DenyAll()
 
-    print(f"Modèle {AGENT_MODEL}, plafond {args.maxIterations} itérations.")
+    print(
+        f"Modèle {config.model}, réflexion {REASONING_EFFORT}, "
+        f"plafond {args.maxIterations} itérations."
+    )
     print(f"Outils : {registry.names()}")
     print(f"Sensibles : {registry.sensitiveNames()} — validation : {mode}")
     print()
 
     try:
         trace = runAgent(
-            client=AnthropicAgentClient(apiKey=config.apiKey),
+            client=OpenAICompatibleClient(
+                baseUrl=config.baseUrl, model=config.model, apiKey=config.apiKey
+            ),
             registry=registry,
             approval=approval,
             systemPrompt=DEFAULT_PROMPT.read_text(encoding="utf-8"),
@@ -96,10 +100,7 @@ def main() -> int:
     print(trace.finalText)
     print()
     print(summarizeTrace(trace))
-    print(
-        f"coût : {estimateCostUsd(trace.usage, AGENT_MODEL):.4f} USD — "
-        f"{trace.latencySeconds:.1f} s"
-    )
+    print(f"latence : {trace.latencySeconds:.1f} s")
 
     if trace.stoppedReason == STOP_ITERATION_LIMIT:
         print()

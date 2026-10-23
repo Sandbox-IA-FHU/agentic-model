@@ -18,7 +18,7 @@ class UnknownToolError(Exception):
 
 
 class ModelCallError(Exception):
-    """L'appel au fournisseur de modèle a échoué de façon définitive."""
+    """L'appel au LLM a échoué de façon définitive."""
 
 
 class NoteStoreError(Exception):

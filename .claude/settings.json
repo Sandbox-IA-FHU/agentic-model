@@ -9,7 +9,11 @@
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(date)",
+      "Bash(docker compose config:*)",
+      "Bash(docker compose run --rm agent-modele pytest:*)",
+      "Bash(docker compose run --rm agent-modele ruff:*)"
     ],
     "deny": [
       "Read(./.env)",

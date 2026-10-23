@@ -3,7 +3,9 @@ name = "agentic-model"
 version = "0.1.0"
 description = "Dépôt modèle pour un agent à outils"
 requires-python = ">=3.13"
-dependencies = ["anthropic>=1,<2"]
+dependencies = [
+    "openai>=3.37,<4",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.14"]

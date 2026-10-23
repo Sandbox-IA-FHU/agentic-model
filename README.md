@@ -1,11 +1,14 @@
 # agentic-model — dépôt modèle pour un agent à outils
 
 > **Statut** : actif
-> **Mise à jour** : 2026-09-04
+> **Mise à jour** : 2026-10-23
 > **Question posée** : quelle structure minimale permet de démarrer un agent à
-> outils dans cette organisation, avec dès le premier commit un plafond de
-> dépense, une validation des actions irréversibles et une mesure ?
-> **Verdict** : en service. Modèle repris via « Use this template ».
+> outils sur le LLM local, importable tel quel en production, avec dès le
+> premier commit un plafond d'itérations, une validation des actions
+> irréversibles et une mesure ?
+> **Verdict** : en service. Modèle repris via « Use this template ». Branché
+> sur le LLM local (API compatible OpenAI) depuis le 2026-10-23 ; aucun run
+> d'évaluation de référence n'existe encore sur ce modèle.
 
 Ce dépôt est un **modèle**, pas un projet. Il contient une boucle d'agent
 complète, minuscule et fonctionnelle. Son intérêt n'est pas le code : c'est ce
@@ -15,9 +18,68 @@ Le premier commit d'un projet dérivé **remplace cet en-tête par le sien** —
 question, son statut, sa date. Un dépôt qui garde l'en-tête du modèle ment sur
 ce qu'il est.
 
+> **Ce dépôt est public, et les projets qui en naissent aussi.** Tout ce qui y
+> entre est lisible par n'importe qui et le reste pour toujours, historique
+> compris. Aucune donnée réelle, aucune clé, aucun nom de client, aucune
+> adresse de serveur — nulle part, y compris dans les messages de commit et
+> les noms de branches. Voir `DONNEES.md` et `SECURITY.md` de l'organisation.
+
+---
+
+## Créer un projet depuis ce modèle
+
+Un dépôt par agent, dans l'organisation, **public**.
+
+1. Sur GitHub : **Use this template** → *Create a new repository*,
+   propriétaire `Sandbox-IA-FHU`, visibilité **Public**, nom en français
+   descriptif.
+2. Cloner, puis créer la branche de travail `staging`. « Use this template »
+   ne copie que la branche par défaut, `main` : `staging` est à créer tout de
+   suite.
+
+   ```bash
+   git clone https://github.com/Sandbox-IA-FHU/<nom-du-projet>.git
+   cd <nom-du-projet>
+   git switch -c staging
+   git push -u origin staging
+   ```
+
+3. Premier commit, sur `staging` :
+   - remplacer l'en-tête de ce README ;
+   - renommer le service `agent-modele` en `agent-<nom-du-projet>` partout où
+     il apparaît (`git grep -l agent-modele` les liste : `compose.yaml`,
+     `.github/workflows/ci.yml`, `.claude/settings.json`, ce README,
+     `CLAUDE.md`) ;
+   - mettre le nom du projet dans `pyproject.toml`, puis `uv lock` (sur le
+     serveur : `docker compose run --rm agent-<nom-du-projet> uv lock`) ;
+   - remplir la section « Le projet » de `CLAUDE.md`.
+
+## Le circuit de travail
+
+Deux branches, sur le modèle du dépôt de production :
+
+| Branche | Rôle | Règles |
+|---|---|---|
+| `staging` | branche de travail | push direct autorisé ; ni force-push, ni suppression |
+| `main` | version validée, celle qui est importée en production | mise à jour **uniquement** par une PR `staging` → `main`, approuvée par Florian |
+
+```
+push sur staging  →  PR staging → main  →  approbation de Florian
+                  →  fusion en merge commit  →  import en production
+```
+
+La PR `staging` → `main` se fusionne en **merge commit**, jamais en squash ni
+en rebase : ces deux modes réécrivent les commits, et `staging` et `main`
+divergeraient à chaque fusion. Seul Florian approuve et fusionne ; le fichier
+`.github/CODEOWNERS` le désigne comme relecteur obligatoire.
+
 ---
 
 ## Démarrer
+
+Deux façons, qui doivent marcher toutes les deux.
+
+### Sur votre poste, avec `uv`
 
 Prérequis : Python 3.13, [`uv`](https://docs.astral.sh/uv/), Git 2.40+.
 
@@ -27,38 +89,118 @@ uv run ruff check .
 uv run pytest
 ```
 
-Ces trois commandes doivent passer sur un dépôt fraîchement cloné, sans clé
-d'API et sans réseau. Les 50 tests couvrent des boucles d'agent complètes —
-plusieurs tours, plusieurs outils, plafond atteint, action refusée — en
-rejouant des scénarios préparés.
+### Sur le serveur, en conteneur
 
-Pour faire tourner l'agent pour de vrai :
+Sur le serveur de staging, rien ne s'installe au niveau du système : `uv`
+n'y est pas, et vous n'avez ni `sudo` ni accès au Docker du serveur. Vous
+utilisez votre propre Docker **rootless**, sans GPU — l'agent n'en a pas
+besoin, il appelle le LLM par son API.
 
 ```bash
-cp .env.exemple .env
+docker compose run --rm agent-modele pytest
+docker compose run --rm agent-modele ruff check .
+docker compose run --rm agent-modele ruff format --check .
 ```
 
-Renseignez `ANTHROPIC_API_KEY`, puis :
+La première commande construit l'image. Le dépôt est monté dans le
+conteneur : une modification de code est prise en compte sans reconstruire.
+Après un changement de dépendances :
+
+```bash
+docker compose run --rm agent-modele uv add <paquet>
+docker compose build agent-modele
+```
+
+Dans les deux cas, les tests passent **sans serveur et sans réseau** : ils
+rejouent des réponses du LLM préparées à l'avance, au format de l'API.
+
+### Faire tourner l'agent pour de vrai
+
+```bash
+cp .env.example .env
+```
+
+Renseignez `LLM_BASE_URL` et `LLM_MODEL_REVISION` (les deux valeurs sont
+fournies par Florian), puis :
 
 ```bash
 uv run --env-file .env python scripts/run_agent.py "quel est le tarif d'astreinte de nuit ?"
 uv run --env-file .env python scripts/evaluate.py --limite 3
 ```
 
+ou en conteneur, qui lit `.env` tout seul :
+
+```bash
+docker compose run --rm agent-modele python scripts/run_agent.py "quel est le tarif d'astreinte de nuit ?"
+docker compose run --rm agent-modele python scripts/evaluate.py --limite 3
+```
+
 `.env` est dans `.gitignore`. Il n'y entre jamais.
+
+---
+
+## Le LLM
+
+Les agents n'appellent pas d'API externe : ils appellent le **LLM local**,
+servi sur un GPU interne, par une API **compatible OpenAI**
+(`/v1/chat/completions`).
+
+| Variable | Rôle |
+|---|---|
+| `LLM_BASE_URL` | Adresse de l'API, terminée par `/v1`. Fournie par Florian, jamais écrite dans le dépôt. Obligatoire : l'agent refuse de démarrer sans elle. |
+| `LLM_MODEL` | Nom exposé par le serveur : `altoneo-llm`. Il est **stable** : il ne change pas quand le modèle derrière change. |
+| `LLM_API_KEY` | Vide aujourd'hui. Lue quand même, pour qu'une passerelle avec une clé par personne puisse venir sans toucher au code. |
+| `LLM_MODEL_REVISION` | Révision exacte du modèle servi, fournie par Florian. Obligatoire pour une évaluation. |
+
+**Le nom exposé n'est pas une version.** Un résultat d'évaluation consigne le
+nom exposé, le modèle réel (que `evaluate.py` lit lui-même sur le serveur), la
+révision et la date. Deux runs ne se comparent que si ces trois éléments sont
+identiques.
+
+**Appels d'outils.** Le modèle demande ses outils au format standard `tools` /
+`tool_calls`. Si le serveur refuse une requête qui contient des outils, c'est
+que l'appel d'outils n'y est pas activé : on le signale à Florian, on ne le
+contourne jamais en analysant du texte libre.
+
+**Réflexion.** Le modèle peut réfléchir avant de répondre. Le serveur renvoie
+cette réflexion à part (`reasoning_content`) ; le client l'écarte toujours :
+elle n'est jamais prise pour la réponse, ne repart jamais dans l'historique,
+et n'apparaît dans aucune trace. Son niveau est la constante
+`REASONING_EFFORT` de `client.py`, consignée dans chaque fichier de run.
+
+| Niveau | Effet |
+|---|---|
+| `off` | pas de réflexion ; le client envoie l'échantillonnage recommandé pour ce mode |
+| `low` | **défaut**, et défaut du serveur |
+| `medium`, `xhigh` | réflexion plus longue, réponses bien plus lentes |
+
+Pourquoi `low` : c'est le meilleur réglage mesuré à ce jour sur un autre
+usage du même modèle. Pour un agent, dont les tours sont courts, `off` pourrait
+faire mieux : c'est **à mesurer** sur le jeu d'évaluation, en ne changeant que
+ce paramètre.
+
+```bash
+uv run --env-file .env python scripts/evaluate.py --reflexion low --etiquette reflexion-low
+uv run --env-file .env python scripts/evaluate.py --reflexion off --etiquette reflexion-off
+```
+
+**Le serveur est partagé** entre plusieurs projets. Un agent qui boucle ou une
+évaluation massive ralentit tout le monde : c'est la raison d'être du plafond
+d'itérations et de `--limite`.
 
 ---
 
 ## Les trois garde-fous
 
 Ce sont eux le sujet du dépôt. Chacun a son test ; s'il tombe, ce n'est pas un
-test à réparer, c'est une régression de sécurité ou de coût.
+test à réparer, c'est une régression de sécurité ou de charge du serveur.
 
 ### 1. Un plafond d'itérations en dur
 
-`MAX_ITERATIONS = 8` dans `loop.py`. Une boucle sans plafond sur une API
-facturée à l'appel est une facture qui part toute seule pendant la nuit — c'est
-le cas typique d'un agent qui se rappelle lui-même ou d'un réessai sans limite.
+`MAX_ITERATIONS = 8` dans `loop.py`. Une boucle sans plafond sur un LLM
+partagé l'occupe indéfiniment — c'est le cas typique d'un agent qui se
+rappelle lui-même ou d'un réessai sans limite — et chaque tour de trop ralentit
+les autres projets.
 
 Atteindre le plafond **n'est pas silencieux** : la trace le dit, le texte final
 le dit, et le script sort en code 1. Une boucle qui s'arrête sans le signaler
@@ -104,10 +246,11 @@ choisit par projet et se justifie ici.
 | Choix | Pourquoi |
 |---|---|
 | **Boucle écrite à la main** (~60 lignes) | C'est ce que le dépôt existe pour montrer. Un framework la cacherait. |
-| **Pas de `tool_runner` du SDK** | Il fait la même chose et il est en beta. La boucle manuelle n'a pas de dépendance beta, et elle laisse voir où passe la validation. Sur un vrai projet, le `tool_runner` est un choix raisonnable — à condition de savoir ce qu'il fait. |
+| **SDK `openai`**, figé dans `uv.lock`, plutôt qu'un appel HTTP direct | Il apporte déjà le délai, les réessais bornés, les erreurs typées et les types de réponse ; en HTTP direct, il faudrait réécrire les réessais. Il ne sert que de client : aucun appel ne part chez OpenAI, `LLM_BASE_URL` pointe vers le LLM local. Un seul module le connaît (`client.py`). |
 | **Pas de framework d'orchestration** | Trois modules et une boucle. Une abstraction de plus ne rendrait rien plus lisible. |
+| **Réflexion `low` par défaut** | Voir « Le LLM » : meilleur réglage mesuré à ce jour, à remesurer pour un agent. |
+| **Image Python + `uv`, dépôt monté** | Sur le serveur, tout tourne en conteneur. Le même `compose.yaml` sert aux tests, à l'agent et à l'import en production. |
 | **Outils locaux et inoffensifs** | Un dépôt modèle ne doit rien pouvoir détruire, même en test. |
-| Fournisseur de modèle : **Anthropic** | Un seul module connaît le SDK (`client.py`). En changer se fait à un seul endroit. |
 
 ---
 
@@ -118,11 +261,51 @@ commit d'un projet dérivé :
 
 > Au moins 85 % de tâches réussies sur le jeu d'évaluation. **0 % d'appel
 > d'outil interdit** — aucune tolérance, c'est le critère de sécurité. Moins de
-> 5 % de runs touchant le plafond d'itérations. Coût maximum 10 centimes par
-> tâche. Latence médiane sous 15 s.
+> 5 % de runs touchant le plafond d'itérations. Médiane de tours, jetons par
+> tâche et latence médiane : seuils à fixer sur le premier run de référence,
+> puis à ne plus dégrader.
 
 Le zéro sur les outils interdits n'est pas une coquette exigence : un agent qui
 tente une action irréversible une fois sur vingt la tentera en production.
+
+---
+
+## L'import en production
+
+Quand Florian valide un projet, il importe `main` dans le dépôt de production,
+comme une app parmi d'autres, dans son propre dossier. Les alternants n'ont
+pas accès à ce dépôt et ne cherchent pas à y accéder. Le modèle est conçu
+pour que l'import se fasse **sans toucher au code** :
+
+- `compose.yaml` suit les conventions de production : nom de service préfixé
+  par le projet, `TZ: Europe/Paris`, image figée par tag et empreinte, aucun
+  GPU, variables lues dans l'environnement. Il y est ajouté tel quel au
+  compose racine, et les commandes `docker compose run --rm agent-<nom> …`
+  servent telles quelles aux tâches de test et de lint.
+- **Réseau.** Une fois importé, l'agent tourne sur le même réseau Docker que
+  le LLM, qui y est joignable sous son nom de service. Seule `LLM_BASE_URL`
+  change, avec la valeur que donnera le responsable.
+- **Utilisateur du conteneur.** Avec un Docker qui n'est pas rootless, root
+  dans le conteneur est le vrai root, et laisserait des fichiers lui
+  appartenant (caches, fichiers de run) dans le dépôt monté. `AGENT_UID` et
+  `AGENT_GID` permettent alors de lancer le conteneur sous l'utilisateur de
+  la machine ; le responsable les fixe à l'import. En Docker rootless, on les
+  laisse vides.
+- Pas de fichier Node (`package.json`…) ici : l'import ajoute ce qui est
+  propre au dépôt de production.
+- `.env.example` porte ce nom exact : c'est le seul fichier d'environnement
+  que le dépôt de production accepte de versionner.
+
+Après l'import, le dépôt passe au statut `statut-importe` (voir
+`CYCLE-DE-VIE.md`) et **les évolutions continuent ici**, dans Sandbox. Chaque
+import est noté dans ce README :
+
+| Date d'import | Commit de `main` importé | Version de production |
+|---|---|---|
+| | | |
+
+Un correctif fait directement en production est reporté ici par une PR, pour
+que les deux versions ne divergent pas.
 
 ---
 
@@ -137,15 +320,17 @@ evaluations/
 src/agent/
   models.py           structures, dont la Trace
   config.py           seul lecteur d'os.environ
-  client.py           seul module qui connaît le SDK
+  client.py           seul module qui connaît le SDK ; écarte la réflexion
   tools.py            registre d'outils
   toolbox.py          les quatre outils d'exemple
   approval.py         politiques de validation
   loop.py             la boucle
-  costs.py            jetons → dollars, tarifs datés
   evaluation.py       notation et agrégation
 tests/                miroir de src/, aucun appel réseau
 scripts/              points d'entrée en ligne de commande
+Dockerfile            image Python 3.13 + uv, utilisateur non root
+compose.yaml          le service de l'agent, aux conventions de production
+.github/CODEOWNERS    relecteur obligatoire des PR vers main
 .claude/              commandes et sous-agents Claude Code de ce dépôt
 CONVENTIONS-PYTHON.md règles d'écriture du Python — à lire avant le 1er commit
 ```
@@ -163,6 +348,10 @@ CONVENTIONS-PYTHON.md règles d'écriture du Python — à lire avant le 1er com
 | `/avant-pr` | Passe la checklist de revue sur votre propre diff |
 
 Et deux sous-agents : `relecteur-resultats` et `verificateur-donnees`.
+
+Sur le serveur de staging, une session Claude Code applique la règle des
+horaires décrite dans `CLAUDE.md` : le serveur s'éteint net le vendredi à
+20h00.
 
 ---
 

@@ -1,4 +1,4 @@
-# Donnees reelles : jamais dans le depot. Voir DONNEES.md.
+# Données réelles : jamais dans le dépôt. Voir DONNEES.md de l'organisation.
 data/
 logs/
 *.log
@@ -11,14 +11,15 @@ logs/
 *.sqlite
 *.sqlite3
 
-# Secrets
+# Secrets : seul .env.example est versionné.
 .env
+.env.*
+!.env.example
 
-# Traces d'execution : un fichier de trace RAG contient le contenu des
-# documents recuperes.
+# Traces d'exécution : une trace d'agent contient tout ce que l'agent a lu.
 traces/
 
-# Les jeux d'evaluation sont des donnees inventees : eux vivent dans le depot.
+# Les jeux d'évaluation sont des données inventées : eux vivent dans le dépôt.
 !evaluations/jeux/**
 
 # Python
@@ -27,3 +28,6 @@ __pycache__/
 .venv/
 .pytest_cache/
 .ruff_cache/
+
+# Divers
+.DS_Store
