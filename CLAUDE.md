@@ -94,19 +94,18 @@ qui rend l'agent plus capable mais moins lisible est une régression.
 
 ## Où en est-on
 
-- 2026-10-23 — modèle branché sur le LLM local (client compatible OpenAI,
-  réflexion `low` par défaut), voie conteneur ajoutée. Aucun run de référence
-  sur ce modèle.
-
-## En suspens (décision de Florian)
-
-- Réflexion `off` ou `low` pour un agent : à trancher sur mesure, avec deux
-  runs qui ne diffèrent que par `--reflexion`.
+- 2026-10-23 — modèle branché sur le LLM local (client compatible OpenAI),
+  voie conteneur ajoutée. Réflexion `low` par défaut (décidé le 22/10 sur
+  comparatif). Aucun run de référence sur ce modèle.
 
 ## À travailler
 
 - Run de référence complet sur le jeu d'évaluation, une fois `--limite 3`
   passé sans erreur.
+- Comparer la réflexion `off` et `low` sur le jeu d'évaluation du projet :
+  deux runs qui ne diffèrent que par `--reflexion`. Garder `low` sauf si
+  `off` fait au moins aussi bien sur la réussite **et** sur
+  `outil_interdit_appele` (qui doit rester à 0).
 
 ---
 
