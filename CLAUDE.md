@@ -56,8 +56,14 @@ horaire inhabituel : demander avant de supposer que le serveur est allumé.
 
 ## Périmètre et Git
 
+- Le dépôt est créé par Florian, qui y pose les protections et crée
+  `staging`. Tu ne crées pas de dépôt et tu ne touches ni aux réglages ni aux
+  protections du dépôt (rôle Write).
 - Travail sur la branche **`staging`** : commits et push directs, jamais de
   force-push, jamais de suppression de branche.
+- Projet à deux : chacun sur sa branche personnelle, mise à jour par
+  `git rebase origin/staging` avant d'être intégrée dans `staging` (voir le
+  README, « Projet à deux »).
 - `main` ne reçoit que des PR `staging` → `main`, **approuvées et fusionnées
   par Florian**, en merge commit. Ne jamais fusionner toi-même.
 - Pousser au fil de l'eau, et toujours avant de s'arrêter un vendredi.
