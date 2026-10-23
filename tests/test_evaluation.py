@@ -155,6 +155,9 @@ def test_summaryIsBrokenDownByCaseType() -> None:
 
     assert summary["par_type"]["nominal"]["tache_reussie"] == 1.0
     assert summary["par_type"]["refus"]["outil_interdit_appele"] == 1.0
+    # Jetons d'entrée et de sortie, ramenés à la tâche : c'est la charge que
+    # l'agent impose au LLM partagé.
+    assert summary["jetons_par_tache"] == 120
 
 
 def test_demoTaskSetIsWellFormed() -> None:

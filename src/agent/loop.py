@@ -1,15 +1,15 @@
 """La boucle d'agent.
 
-Écrite à la main, une soixantaine de lignes. Le SDK propose un `tool_runner`
-qui fait la même chose, et il est en beta ; un framework d'orchestration ferait
-la même chose en cachant ce que ce dépôt existe pour montrer. La règle de
-l'organisation s'applique : avant d'ajouter une dépendance pour vingt lignes,
-on écrit les vingt lignes.
+Écrite à la main, une soixantaine de lignes. Un framework d'orchestration
+ferait la même chose en cachant ce que ce dépôt existe pour montrer. La règle
+de l'organisation s'applique : avant d'ajouter une dépendance pour vingt
+lignes, on écrit les vingt lignes.
 
 Trois propriétés ne se négocient pas :
 
-1. **Le plafond d'itérations est en dur.** Une boucle sans plafond sur une API
-   facturée est un incident financier en puissance.
+1. **Le plafond d'itérations est en dur.** Le LLM est partagé entre plusieurs
+   projets : une boucle sans plafond l'occupe indéfiniment et ralentit tout le
+   monde.
 2. **Atteindre le plafond n'est pas silencieux.** La trace le dit. Une boucle
    qui s'arrête sans le dire produit une réponse tronquée qu'on prend pour une
    réponse.
@@ -79,19 +79,22 @@ def executeCall(
     return ToolOutcome(call=call, content=str(result)[:MAX_RESULT_LENGTH])
 
 
-def buildToolResults(outcomes: tuple[ToolOutcome, ...]) -> list[dict[str, object]]:
+def buildToolMessages(outcomes: tuple[ToolOutcome, ...]) -> list[dict[str, object]]:
     """Met les résultats d'outils en forme pour le tour suivant.
 
-    Tous les résultats d'un même tour partent dans **un seul** message. Les
-    répartir sur plusieurs messages apprend au modèle à ne plus grouper ses
-    appels, et coûte un aller-retour de plus à chaque fois.
+    Format OpenAI : un message `tool` par appel, tous placés juste après le
+    message de l'assistant qui les a demandés, et envoyés dans **le même**
+    aller-retour. Les répartir sur plusieurs tours apprend au modèle à ne plus
+    grouper ses appels, et coûte un tour complet à chaque fois.
+
+    Le format n'a pas de champ d'erreur : un échec se lit dans le contenu, qui
+    commence par « Erreur », « Outil inconnu » ou « Action refusée ».
     """
     return [
         {
-            "type": "tool_result",
-            "tool_use_id": outcome.call.callId,
+            "role": "tool",
+            "tool_call_id": outcome.call.callId,
             "content": outcome.content,
-            "is_error": outcome.isError,
         }
         for outcome in outcomes
     ]
@@ -144,8 +147,8 @@ def runAgent(
             )
         )
 
-        messages.append({"role": "assistant", "content": turn.assistantContent})
-        messages.append({"role": "user", "content": buildToolResults(outcomes)})
+        messages.append(turn.assistantMessage)
+        messages.extend(buildToolMessages(outcomes))
     else:
         # `for ... else` : atteint uniquement si la boucle n'a pas rencontré de
         # `break`, c'est-à-dire si le plafond a été touché.

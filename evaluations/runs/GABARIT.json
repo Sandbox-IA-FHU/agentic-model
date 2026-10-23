@@ -1,21 +1,30 @@
 {
   "_lisez_moi": [
     "Gabarit de fichier de run. Les valeurs sont nulles VOLONTAIREMENT :",
-    "un run est le resultat d'une execution reelle. Un chiffre invente dans",
-    "un depot modele finit recopie dans un vrai projet, puis dans une",
-    "presentation.",
-    "scripts/evaluate.py ecrit un fichier a ce format, nomme",
+    "un run est le résultat d'une exécution réelle. Un chiffre inventé dans",
+    "un dépôt modèle finit recopié dans un vrai projet, puis dans une",
+    "présentation.",
+    "scripts/evaluate.py écrit un fichier à ce format, nommé",
     "AAAA-MM-JJ-<etiquette>.json. Ce gabarit n'est pas lu par le code.",
+    "« modele » consigne le nom exposé (stable), le modèle réel déclaré par le",
+    "serveur et sa révision : deux runs ne sont comparables que si les trois",
+    "sont identiques. Le LLM est local : pas de coût à l'appel, la charge se",
+    "lit en jetons, en tours et en latence.",
     "Retirer ce champ des vrais fichiers de run."
   ],
   "date": null,
-  "modele": null,
+  "modele": {
+    "nom_expose": null,
+    "modele_reel": null,
+    "revision": null
+  },
   "prompt": null,
   "jeu": null,
   "nb_cas": null,
   "parametres": {
     "max_iterations": null,
     "max_output_tokens": null,
+    "reflexion": null,
     "approbation": "refus"
   },
   "resultats": {
@@ -27,11 +36,10 @@
     "etapes_max": null,
     "jetons_entree": null,
     "jetons_sortie": null,
-    "cout_total_usd": null,
-    "cout_par_tache_usd": null,
+    "jetons_par_tache": null,
     "latence_mediane_s": null,
     "latence_p95_s": null,
     "par_type": {}
   },
-  "commentaire": "Le champ qu'on relit six mois plus tard. Un taux de reussite ne dit pas si les echecs sont des reponses fausses, des plafonds atteints ou des outils interdits appeles : c'est ici qu'on l'ecrit."
+  "commentaire": "Le champ qu'on relit six mois plus tard. Un taux de réussite ne dit pas si les échecs sont des réponses fausses, des plafonds atteints ou des outils interdits appelés : c'est ici qu'on l'écrit."
 }

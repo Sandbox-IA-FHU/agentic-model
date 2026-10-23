@@ -19,24 +19,24 @@ est assumé, écrit, et appliqué par l'outil.
 | Fichier, module, paquet | `snake_case` | `answer_generation.py` |
 | Classe, exception | `PascalCase` | `RetrievedPassage`, `EmptyContextError` |
 | Constante de module | `MAJUSCULES_SNAKE` | `MAX_ITERATIONS`, `ANSWER_MODEL` |
-| Variable, attribut | `camelCase` | `chunkSize`, `totalCost` |
-| Fonction, méthode | `camelCase` | `retrievePassages()`, `estimateCost()` |
+| Variable, attribut | `camelCase` | `chunkSize`, `totalTokens` |
+| Fonction, méthode | `camelCase` | `retrievePassages()`, `countTokens()` |
 | Privé | préfixe `_` | `_normalizeText()` |
 
 **Les identifiants sont en anglais**, comme partout dans l'organisation. Les
 docstrings, les commentaires et les messages destinés à un humain sont en
-français. `def calculerLeCout()` est doublement faux ; `def estimateCost()`
+français. `def compterLesJetons()` est doublement faux ; `def countTokens()`
 avec une docstring française est juste.
 
 Trois précisions qui évitent les allers-retours en revue :
 
 - **Les clés des fichiers de données restent en `snake_case` français**, telles
-  que documentées dans `EVALUATION.md` (`nb_cas`, `cout_total_eur`,
+  que documentées dans `EVALUATION.md` (`nb_cas`, `jetons_entree`,
   `latence_p95_s`). C'est un contrat de données lu par des humains et par
   d'autres outils, pas du code Python. La conversion se fait à la
   sérialisation, dans un seul module.
 - **Les arguments nommés des bibliothèques tierces gardent leur nom.** On écrit
-  `client.messages.create(max_tokens=...)`, évidemment.
+  `client.chat.completions.create(max_tokens=...)`, évidemment.
 - **Les noms de fichiers de code sont en anglais** (`retrieval.py`), les noms
   de fichiers de documentation en français (`CONVENTIONS-PYTHON.md`). Un
   fichier `.py` est du code.
@@ -104,10 +104,10 @@ Disposition `src/` : le code du paquet vit dans `src/<paquet>/`, les tests dans
   d'ouverture de fichier, pas d'appel réseau, pas d'instanciation de client au
   niveau module. Tout cela se fait dans une fonction, appelée explicitement.
 
-Cette dernière règle est celle qui rend les tests possibles sans clé d'API. Un
-`client = Anthropic()` au niveau module fait échouer l'import lui-même quand la
-variable d'environnement est absente — donc fait échouer la CI, qui n'a
-volontairement pas de vraie clé.
+Cette dernière règle est celle qui rend les tests possibles sans serveur. Un
+client construit au niveau module lit l'environnement à l'import : l'import
+lui-même échoue quand une variable manque — donc la CI, qui n'a volontairement
+ni vraie adresse ni vraie clé.
 
 ---
 
@@ -121,47 +121,54 @@ Partout ailleurs, on reçoit la configuration en argument.
   casse trois couches plus loin avec une trace incompréhensible.
 - Aucun chemin en dur. Les chemins vers des données réelles arrivent par
   variable d'environnement — voir `DONNEES.md`.
-- `.env.exemple` liste toutes les variables attendues, avec des **valeurs
-  vides**. Une variable ajoutée au code et pas à `.env.exemple` est un défaut.
+- `.env.example` liste toutes les variables attendues, avec des **valeurs
+  vides** (ou une valeur générique non secrète, comme un nom de modèle). Une
+  variable ajoutée au code et pas à `.env.example` est un défaut. Ce nom exact
+  est celui que le dépôt de production accepte de versionner.
 - Aucune valeur par défaut pour un secret. Un défaut sur une clé masque l'oubli
-  et produit une erreur d'authentification illisible.
+  et produit une erreur d'authentification illisible. Une clé **vide** est
+  admise quand le service n'en demande pas (LLM local sans passerelle) : elle
+  est lue quand même, pour qu'une clé puisse arriver sans toucher au code.
+- Une adresse de service ne s'écrit jamais en dur : elle arrive par variable
+  d'environnement, et le démarrage échoue si elle manque.
 
 ---
 
 ## 5. Appels modèle
 
-Un module client unique. Le reste du code ne connaît pas le SDK du
-fournisseur.
+Un module client unique. Le reste du code ne connaît pas le SDK.
 
-**L'identifiant de modèle est une constante en majuscules**, jamais écrit en
-ligne dans le code appelant :
+Le modèle par défaut de l'organisation est le **LLM local**, servi par une
+API compatible OpenAI. Son adresse et son nom viennent de la configuration
+(`LLM_BASE_URL`, `LLM_MODEL`), jamais écrits en ligne dans le code appelant.
+Un modèle externe éventuel suit la même règle : identifiant en constante
+majuscule ou en configuration, jamais en ligne.
 
-```python
-ANSWER_MODEL = "claude-opus-5"
-```
-
-Point de vigilance, parce qu'il contredit une lecture rapide de la règle 7 de
-l'organisation : les identifiants Anthropic actuels **ne portent pas de suffixe
-de date** — `claude-opus-5` est l'identifiant complet, on ne lui ajoute rien.
-La reproductibilité d'un run ne repose donc pas sur le seul identifiant : elle
-repose sur le fichier de run, qui consigne l'identifiant **et sa date
-d'exécution**. Un score de mars et un score de septembre sur le même
-identifiant ne sont pas comparables sans vérifier ce qui a bougé côté
-fournisseur. Chez un fournisseur qui date ses identifiants, on utilise la forme
-datée.
+**Un nom de modèle n'est pas une version.** Le LLM local est exposé sous un
+nom stable, qui ne change pas quand le modèle derrière change ; un fournisseur
+externe a souvent des alias qui bougent de même. La reproductibilité repose
+donc sur le fichier de run, qui consigne le nom utilisé, **le modèle réel et
+sa révision**, et la date d'exécution. Deux scores sur le même nom à deux
+dates ne sont pas comparables sans vérifier ce qui a bougé côté serveur.
 
 Les autres règles d'appel :
 
-- Délai d'expiration explicite sur le client. Le défaut du SDK est de dix
-  minutes : ce n'est pas une valeur qu'on subit sans le savoir.
+- Délai d'expiration explicite sur le client. Les défauts des SDK sont
+  souvent de plusieurs minutes : ce n'est pas une valeur qu'on subit sans le
+  savoir.
 - Nombre de réessais **borné par une constante**, et jamais de boucle de
   réessai maison par-dessus celle du SDK.
-- Chaque appel renvoie ses jetons d'entrée et de sortie **séparément**. Sans
-  ça, le coût n'est pas recalculable quand les tarifs changent, et il faut tout
-  relancer.
-- Les tarifs utilisés pour convertir des jetons en euros sont des constantes
-  **datées en commentaire**, dans un seul module. Un tarif sans date est un
-  tarif faux.
+- Chaque appel renvoie ses jetons d'entrée et de sortie **séparément**, lus
+  dans `usage`. C'est la mesure de charge du LLM partagé, et c'est ce qui
+  permet de recalculer un coût si un projet passe un jour sur une API
+  facturée, sans tout relancer.
+- **La réflexion d'un modèle n'est pas sa réponse.** Quand le serveur la
+  renvoie à part, le client l'écarte : elle ne repart pas dans l'historique,
+  n'apparaît dans aucun log ni aucune trace. Son niveau est un réglage
+  explicite, consigné dans le fichier de run.
+- Avec une API facturée, et seulement dans ce cas, les tarifs sont des
+  constantes **datées en commentaire**, dans un seul module. Un tarif sans
+  date est un tarif faux.
 - Un seul paramètre change entre deux runs d'évaluation. Deux changements
   simultanés produisent un résultat ininterprétable.
 
@@ -180,9 +187,10 @@ Atteindre le plafond n'est pas une erreur silencieuse : la boucle renvoie une
 trace qui dit qu'elle s'est arrêtée là, et pourquoi. Une boucle qui s'arrête
 sans le dire produit une réponse tronquée qu'on prend pour une réponse.
 
-Une boucle sans plafond sur une API facturée est un incident financier en
-puissance — c'est écrit dans le `SECURITY.md` de l'organisation, ceci en est la
-traduction en code.
+Une boucle sans plafond occupe indéfiniment un LLM partagé entre plusieurs
+projets — et, sur une API facturée, devient un incident financier. C'est
+écrit dans le `SECURITY.md` de l'organisation, ceci en est la traduction en
+code.
 
 ---
 
@@ -221,12 +229,13 @@ En pratique, dans le code :
 `T20` de `ruff` le vérifie. Les `print` sont autorisés dans `scripts/`, dont
 c'est le rôle.
 
-Ce qu'on logue : des identifiants, des compteurs, des durées, des coûts, des
+Ce qu'on logue : des identifiants, des compteurs, des durées, des jetons, des
 noms de modèle.
 
 Ce qu'on ne logue jamais : un prompt, un extrait de document, une réponse de
-modèle, un contenu d'outil. Loguer un prompt de RAG revient à loguer le contenu
-métier des documents récupérés, intégralement. Les fichiers de trace ne sont
+modèle, la réflexion d'un modèle, un contenu d'outil. Loguer un prompt de RAG
+revient à loguer le contenu métier des documents récupérés, intégralement ; la
+réflexion reprend tout ce que le modèle a lu. Les fichiers de trace ne sont
 jamais commités.
 
 Le niveau se règle par variable d'environnement, il n'est pas figé dans le
@@ -254,13 +263,14 @@ le diff est illisible en revue.
 
 `tests/` reflète `src/`. Un comportement par test, un nom qui dit lequel.
 
-- **Aucun appel réseau.** La CI le garantit en fournissant des clés
-  volontairement invalides ; le code doit le rendre possible, en acceptant un
-  client injecté plutôt qu'en le construisant lui-même.
-- Le faux client vit dans `tests/conftest.py` et renvoie des réponses fixes.
-- Ce qui se teste en priorité sur un projet IA : le découpage, le calcul de
-  coût, le plafond d'itérations, le comportement de refus, et l'assemblage du
-  prompt. Pas la qualité de la réponse du modèle — ça, c'est le jeu
+- **Aucun appel réseau.** La CI le garantit en fournissant une adresse de
+  LLM injoignable et une clé factice ; le code doit le rendre possible, en
+  acceptant un client injecté plutôt qu'en le construisant lui-même.
+- Le faux client vit dans `tests/conftest.py` et renvoie des réponses fixes,
+  au format de l'API réelle.
+- Ce qui se teste en priorité sur un projet IA : le découpage, le comptage des
+  jetons, le plafond d'itérations, le comportement de refus, l'assemblage du
+  prompt, et la mise à l'écart de la réflexion du modèle. Pas la qualité de la réponse du modèle — ça, c'est le jeu
   d'évaluation, et ce n'est pas un test unitaire.
 - Un test qui échoue une fois sur trois est pire que pas de test : on finit par
   ignorer la CI rouge.

@@ -2,7 +2,7 @@
 
 Les trois premiers tests portent sur les trois propriétés que le README
 annonce comme non négociables. S'ils tombent, ce n'est pas un test à réparer :
-c'est une régression de sécurité ou de coût.
+c'est une régression de sécurité ou de charge du serveur.
 """
 
 from agent.approval import AllowAll, DenyAll
@@ -16,7 +16,7 @@ PROMPT = "Consignes de test."
 
 def test_iterationLimitStopsTheLoop(registry: ToolRegistry) -> None:
     # Sans plafond, ce client ferait tourner la boucle indéfiniment. C'est
-    # exactement le scénario d'une facture qui part toute seule pendant la nuit.
+    # exactement le scénario d'un agent qui occupe le LLM partagé toute la nuit.
     client = LoopingClient()
 
     trace = runAgent(
@@ -129,9 +129,11 @@ def test_loopStopsWhenTheModelStopsCallingTools(registry: ToolRegistry) -> None:
     assert trace.finalText == "Le tarif est de 95 euros."
 
 
-def test_parallelToolResultsGoInASingleMessage(registry: ToolRegistry) -> None:
-    # Répartir les résultats sur plusieurs messages apprend au modèle à ne plus
-    # grouper ses appels, et coûte un aller-retour de plus à chaque fois.
+def test_parallelToolResultsShareOneRoundTrip(registry: ToolRegistry) -> None:
+    # Format OpenAI : un message « tool » par appel. Ce qui compte, c'est qu'ils
+    # suivent tous le message de l'assistant et partent dans le même
+    # aller-retour. Les étaler sur plusieurs tours apprend au modèle à ne plus
+    # grouper ses appels, et coûte un tour complet à chaque fois.
     client = ScriptedClient(
         [
             toolTurn(
@@ -150,19 +152,11 @@ def test_parallelToolResultsGoInASingleMessage(registry: ToolRegistry) -> None:
         task="lis les deux notes",
     )
 
-    secondTurnMessages = client.calls[1]
-    toolResultMessages = [
-        message
-        for message in secondTurnMessages
-        if isinstance(message["content"], list)
-        and all(
-            isinstance(block, dict) and block.get("type") == "tool_result"
-            for block in message["content"]
-        )
-    ]
-
-    assert len(toolResultMessages) == 1
-    assert len(toolResultMessages[0]["content"]) == 2
+    assert len(client.calls) == 2
+    roles = [message["role"] for message in client.calls[1]]
+    assert roles == ["user", "assistant", "tool", "tool"]
+    toolCallIds = [message["tool_call_id"] for message in client.calls[1][2:]]
+    assert toolCallIds == ["c1", "c2"]
 
 
 def test_unknownToolBecomesAnErrorResult(registry: ToolRegistry) -> None:

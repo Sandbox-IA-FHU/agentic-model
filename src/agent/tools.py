@@ -51,9 +51,12 @@ class ToolRegistry:
         """
         return [
             {
-                "name": spec.name,
-                "description": spec.description,
-                "input_schema": spec.inputSchema,
+                "type": "function",
+                "function": {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parameters": spec.inputSchema,
+                },
             }
             for spec in self._specs.values()
         ]

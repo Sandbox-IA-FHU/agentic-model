@@ -1,55 +1,82 @@
 """Outillage commun aux tests.
 
-Aucun test de ce dépôt n'appelle un fournisseur de modèle. Le faux client
-rejoue un **scénario** : une liste de tours préparés, rendus dans l'ordre. Cela
-permet de tester des boucles d'agent complètes — plusieurs tours, plusieurs
-outils, un plafond atteint — sans réseau, sans clé et sans facture.
+Aucun test de ce dépôt n'appelle le LLM. Le faux client rejoue un
+**scénario** : une liste de réponses préparées **au format OpenAI**, rendues
+dans l'ordre. Elles passent par `turnFromResponse`, le même analyseur que le
+client réel : les tests de boucle vérifient donc aussi la lecture des
+`tool_calls`. Cela permet de tester des boucles d'agent complètes — plusieurs
+tours, plusieurs outils, un plafond atteint — sans réseau et sans serveur.
 """
 
-import pytest
+import json
 
-from agent.client import STOP_END_TURN, STOP_TOOL_USE, ModelTurn
-from agent.models import ToolCall, Usage
+import pytest
+from openai.types.chat import ChatCompletion
+
+from agent.client import FINISH_STOP, FINISH_TOOL_CALLS, ModelTurn, turnFromResponse
 from agent.toolbox import NoteStore, buildToolbox
 from agent.tools import ToolRegistry
 
-DEFAULT_USAGE = Usage(inputTokens=100, outputTokens=20)
+INPUT_TOKENS = 100
+OUTPUT_TOKENS = 20
 
 
-def textTurn(text: str) -> ModelTurn:
-    """Un tour sans appel d'outil : l'agent répond et s'arrête."""
-    return ModelTurn(
-        text=text,
-        toolCalls=(),
-        assistantContent=[{"type": "text", "text": text}],
-        usage=DEFAULT_USAGE,
-        stopReason=STOP_END_TURN,
+def completion(
+    content: str | None,
+    toolCalls: list[dict[str, object]] | None = None,
+    finishReason: str = FINISH_STOP,
+    reasoning: str | None = None,
+) -> ChatCompletion:
+    """Une réponse de `/v1/chat/completions`, telle que le serveur la renvoie."""
+    message: dict[str, object] = {"role": "assistant", "content": content}
+    if toolCalls:
+        message["tool_calls"] = toolCalls
+    if reasoning is not None:
+        # Champ ajouté par le serveur quand la réflexion est active.
+        message["reasoning_content"] = reasoning
+    return ChatCompletion.model_validate(
+        {
+            "id": "scenario",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "altoneo-llm",
+            "choices": [
+                {"index": 0, "message": message, "finish_reason": finishReason}
+            ],
+            "usage": {
+                "prompt_tokens": INPUT_TOKENS,
+                "completion_tokens": OUTPUT_TOKENS,
+                "total_tokens": INPUT_TOKENS + OUTPUT_TOKENS,
+            },
+        }
     )
 
 
-def toolTurn(*calls: tuple[str, str, dict[str, object]]) -> ModelTurn:
+def textTurn(text: str, reasoning: str | None = None) -> ModelTurn:
+    """Un tour sans appel d'outil : l'agent répond et s'arrête."""
+    return turnFromResponse(completion(text, reasoning=reasoning))
+
+
+def toolTurn(
+    *calls: tuple[str, str, dict[str, object]], reasoning: str | None = None
+) -> ModelTurn:
     """Un tour qui demande un ou plusieurs outils.
 
     Chaque appel est décrit par (identifiant, nom d'outil, arguments).
     """
-    toolCalls = tuple(
-        ToolCall(callId=callId, toolName=name, arguments=arguments)
+    toolCalls = [
+        {
+            "id": callId,
+            "type": "function",
+            "function": {
+                "name": name,
+                "arguments": json.dumps(arguments, ensure_ascii=False),
+            },
+        }
         for callId, name, arguments in calls
-    )
-    return ModelTurn(
-        text="",
-        toolCalls=toolCalls,
-        assistantContent=[
-            {
-                "type": "tool_use",
-                "id": call.callId,
-                "name": call.toolName,
-                "input": call.arguments,
-            }
-            for call in toolCalls
-        ],
-        usage=DEFAULT_USAGE,
-        stopReason=STOP_TOOL_USE,
+    ]
+    return turnFromResponse(
+        completion(None, toolCalls, FINISH_TOOL_CALLS, reasoning=reasoning)
     )
 
 
@@ -84,7 +111,7 @@ class LoopingClient:
 
     Sert à prouver que le plafond d'itérations arrête la boucle. Sans plafond,
     ce client la ferait tourner indéfiniment — c'est exactement le scénario
-    d'une facture qui part toute seule pendant la nuit.
+    d'un agent qui occupe le LLM partagé pendant toute une nuit.
     """
 
     def __init__(self) -> None:

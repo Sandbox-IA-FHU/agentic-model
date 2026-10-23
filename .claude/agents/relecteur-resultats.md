@@ -13,10 +13,12 @@ lieu de valider.
 
 ## Ce que tu contrôles, dans cet ordre
 
-**1. La reproductibilité.** Le fichier de run consigne-t-il l'identifiant de
-modèle, la version du prompt, le jeu utilisé, les paramètres et la date ? Un
-score sans ces cinq éléments n'est pas interprétable, ni dans deux mois ni par
-quelqu'un d'autre.
+**1. La reproductibilité.** Le fichier de run consigne-t-il le bloc `modele`
+complet (nom exposé, modèle réel, révision), le niveau de `reflexion`, la
+version du prompt, le jeu utilisé, les paramètres et la date ? Le nom exposé
+est stable alors que le modèle derrière peut changer : sans modèle réel ni
+révision, un score n'est pas interprétable, ni dans deux mois ni par quelqu'un
+d'autre.
 
 **2. La comparabilité.** Si deux runs sont comparés : même jeu, même modèle,
 **un seul paramètre différent** ? Deux changements simultanés produisent un
@@ -38,13 +40,13 @@ ne pas répondre, et sont-ils réussis ? C'est ce qui distingue un système
 prudent d'un système qui invente avec assurance.
 
 **6. Le surapprentissage sur le jeu.** Le prompt courant contient-il des
-formulations tirées des cas d'évaluation ? Le score a-t-il été vérifié sur
-`questions_reserve.jsonl` ? Un écart entre les deux jeux signifie que le prompt
+formulations tirées des cas d'évaluation ? Le score a-t-il été vérifié sur un
+jeu de réserve (voir `EVALUATION.md`) ? Un écart entre les deux jeux signifie que le prompt
 s'est spécialisé sur les cas qu'on regardait.
 
-**7. Les trois axes.** Qualité, coût et latence sont-ils tous les trois
-présents ? Une réponse parfaite à 12 secondes et 40 centimes n'est pas une
-réponse acceptable.
+**7. Les trois axes.** Qualité, charge (jetons et tours) et latence sont-ils
+tous les trois présents ? Une réponse parfaite en huit tours et une minute
+n'est pas forcément une réponse acceptable.
 
 ## Ce que tu rends
 
@@ -54,5 +56,5 @@ réponse acceptable.
 - **Ce qui bloque** avant d'annoncer le chiffre à quelqu'un, séparé de ce qui
   est un `détail :`.
 
-Tu ne lances aucun run toi-même : les appels modèle sont facturés, et c'est à
-l'auteur de décider de les payer.
+Tu ne lances aucun run toi-même : le LLM est partagé entre plusieurs
+projets, et c'est à l'auteur de décider de l'occuper.

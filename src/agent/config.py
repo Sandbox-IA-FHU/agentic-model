@@ -1,7 +1,7 @@
 """Configuration du projet.
 
 Seul module du dépôt qui lit `os.environ`. Partout ailleurs, la configuration
-arrive en argument — c'est ce qui rend le reste testable sans clé d'API.
+arrive en argument — c'est ce qui rend le reste testable sans serveur.
 """
 
 import os
@@ -19,14 +19,35 @@ APPROVAL_CONSOLE = "console"
 VALID_APPROVAL_MODES = (APPROVAL_DENY, APPROVAL_CONSOLE)
 DEFAULT_APPROVAL_MODE = APPROVAL_DENY
 
+ENV_FILE_HINT = (
+    "Copier .env.example en .env, le renseigner, puis lancer avec "
+    "uv run --env-file .env ... (ou docker compose run, qui lit .env)."
+)
+
 
 @dataclass(frozen=True)
 class Config:
-    """Configuration validée. Construite uniquement par `loadConfig`."""
+    """Configuration validée. Construite uniquement par `loadConfig`.
 
+    `apiKey` peut être vide : le LLM local n'en demande pas aujourd'hui, mais
+    une passerelle avec une clé par personne pourra venir sans toucher au code.
+    `modelRevision` peut être vide pour un essai, jamais pour une évaluation.
+    """
+
+    baseUrl: str
+    model: str
     apiKey: str
+    modelRevision: str
     logLevel: str
     approvalMode: str
+
+
+def _requireVariable(name: str, hint: str) -> str:
+    """Lit une variable obligatoire, ou échoue en disant quoi faire."""
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ConfigError(f"{name} est absente ou vide. {hint} {ENV_FILE_HINT}")
+    return value
 
 
 def loadConfig() -> Config:
@@ -35,12 +56,16 @@ def loadConfig() -> Config:
     Échoue immédiatement si elle est incomplète, avec un message qui dit quoi
     faire.
     """
-    apiKey = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not apiKey:
+    baseUrl = _requireVariable(
+        "LLM_BASE_URL", "L'adresse du LLM est fournie par Florian (responsable)."
+    )
+    if not baseUrl.startswith(("http://", "https://")):
         raise ConfigError(
-            "ANTHROPIC_API_KEY est absente. Copier .env.exemple en .env, "
-            "la renseigner, puis lancer avec : uv run --env-file .env ..."
+            "LLM_BASE_URL doit commencer par http:// ou https:// et se terminer "
+            "par /v1, par exemple http://<adresse-du-serveur-llm>:8000/v1."
         )
+
+    model = _requireVariable("LLM_MODEL", "Valeur attendue : altoneo-llm.")
 
     logLevel = os.environ.get("LOG_LEVEL", DEFAULT_LOG_LEVEL).strip().upper()
     if logLevel not in VALID_LOG_LEVELS:
@@ -55,4 +80,11 @@ def loadConfig() -> Config:
             f"{VALID_APPROVAL_MODES}."
         )
 
-    return Config(apiKey=apiKey, logLevel=logLevel, approvalMode=approvalMode)
+    return Config(
+        baseUrl=baseUrl,
+        model=model,
+        apiKey=os.environ.get("LLM_API_KEY", "").strip(),
+        modelRevision=os.environ.get("LLM_MODEL_REVISION", "").strip(),
+        logLevel=logLevel,
+        approvalMode=approvalMode,
+    )

@@ -18,8 +18,9 @@ au projet. Pas « améliorer le RAG » — « est-ce qu'un découpage plus court
 remonte plus souvent le bon passage sur les questions à vocabulaire décalé ? »
 
 **2. Comment on saura que c'est réussi.** La métrique exacte parmi celles que
-le dépôt mesure déjà (`rappel_recherche`, `reponse_correcte`, `refus_correct`,
-coût, latence), le nombre de cas, et le seuil. Si la modification ne touche
+le dépôt mesure déjà (`tache_reussie` et son découpage `par_type`,
+`outil_interdit_appele`, `limite_iterations_atteinte`, `etapes_medianes`,
+`jetons_par_tache`, `latence_mediane_s`), le nombre de cas, et le seuil. Si la modification ne touche
 aucune de ces métriques, dis-le : c'est peut-être qu'elle ne se mesure pas, et
 c'est une information.
 

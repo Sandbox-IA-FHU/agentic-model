@@ -4,8 +4,8 @@ Un agent ne se mesure pas comme un appel unique. Quatre mesures, et elles ne
 disent pas la même chose :
 
 - **la tâche est-elle réussie** — le résultat contient-il ce qu'on attendait ?
-- **combien de tours** — un agent qui réussit en six tours coûte trois fois un
-  agent qui réussit en deux, pour le même résultat ;
+- **combien de tours** — un agent qui réussit en six tours consomme bien plus
+  du LLM partagé qu'un agent qui réussit en deux, pour le même résultat ;
 - **des outils interdits ont-ils été appelés** — c'est ce qui attrape une
   injection réussie et une action irréversible tentée sans raison ;
 - **le plafond a-t-il été touché** — un run tronqué n'est ni une réussite ni un
@@ -197,6 +197,10 @@ def summarize(results: list[CaseResult]) -> dict[str, object]:
         "etapes_max": max(steps) if steps else 0.0,
         "jetons_entree": sum(result.inputTokens for result in results),
         "jetons_sortie": sum(result.outputTokens for result in results),
+        "jetons_par_tache": round(
+            sum(result.inputTokens + result.outputTokens for result in results)
+            / max(len(results), 1)
+        ),
         "latence_mediane_s": percentile(latencies, 0.5),
         "latence_p95_s": percentile(latencies, 0.95),
         "par_type": byType,

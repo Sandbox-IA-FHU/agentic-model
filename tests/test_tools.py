@@ -22,13 +22,14 @@ def buildSpec(name: str, sensitive: bool = False) -> ToolSpec:
 
 def test_registryExposesSchemas(registry: ToolRegistry) -> None:
     schemas = registry.schemas()
-    names = [schema["name"] for schema in schemas]
+    functions = [schema["function"] for schema in schemas]
 
-    assert names == registry.names()
-    assert all("input_schema" in schema for schema in schemas)
+    assert all(schema["type"] == "function" for schema in schemas)
+    assert [function["name"] for function in functions] == registry.names()
     # Le schéma envoyé au modèle et la fonction exécutée viennent du même
     # objet : c'est ce qui les empêche de diverger.
-    assert all("description" in schema for schema in schemas)
+    assert all("parameters" in function for function in functions)
+    assert all("description" in function for function in functions)
 
 
 def test_sensitiveToolsAreListed(registry: ToolRegistry) -> None:
