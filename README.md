@@ -6,7 +6,7 @@
 > outils sur le LLM local, importable tel quel en production, avec dès le
 > premier commit un plafond d'itérations, une validation des actions
 > irréversibles et une mesure ?
-> **Verdict** : en service. Modèle repris via « Use this template ». Branché
+> **Verdict** : en service. Florian crée chaque projet depuis ce modèle. Branché
 > sur le LLM local (API compatible OpenAI) depuis le 2026-10-23 ; aucun run
 > d'évaluation de référence n'existe encore sur ce modèle.
 
@@ -26,42 +26,40 @@ ce qu'il est.
 
 ---
 
-## Créer un projet depuis ce modèle
+## Démarrer un projet
 
-Un dépôt par agent, dans l'organisation, **public**.
+**Vous ne créez pas le dépôt vous-même.** Demandez-le à Florian (responsable),
+en lui disant si le projet est **individuel ou à deux**. Il crée le dépôt
+depuis ce modèle, vous y ajoute, pose les protections et crée la branche de
+travail `staging`. Vous n'avez donc ni dépôt à créer ni branche `staging` à
+créer : vous clonez, puis vous passez sur `staging`.
 
-1. Sur GitHub : **Use this template** → *Create a new repository*,
-   propriétaire `Sandbox-IA-FHU`, visibilité **Public**, nom en français
-   descriptif.
-2. Cloner, puis créer la branche de travail `staging`. « Use this template »
-   ne copie que la branche par défaut, `main` : `staging` est à créer tout de
-   suite.
+```bash
+git clone https://github.com/Sandbox-IA-FHU/<nom-du-projet>.git
+cd <nom-du-projet>
+git switch staging
+```
 
-   ```bash
-   git clone https://github.com/Sandbox-IA-FHU/<nom-du-projet>.git
-   cd <nom-du-projet>
-   git switch -c staging
-   git push -u origin staging
-   ```
+Premier commit, sur `staging` :
 
-3. Premier commit, sur `staging` :
-   - remplacer l'en-tête de ce README ;
-   - renommer le service `agent-modele` en `agent-<nom-du-projet>` partout où
-     il apparaît (`git grep -l agent-modele` les liste : `compose.yaml`,
-     `.github/workflows/ci.yml`, `.claude/settings.json`, ce README,
-     `CLAUDE.md`) ;
-   - mettre le nom du projet dans `pyproject.toml`, puis `uv lock` (sur le
-     serveur : `docker compose run --rm agent-<nom-du-projet> uv lock`) ;
-   - remplir la section « Le projet » de `CLAUDE.md`.
+- remplacer l'en-tête de ce README ;
+- renommer le service `agent-modele` en `agent-<nom-du-projet>` partout où il
+  apparaît (`git grep -l agent-modele` les liste : `compose.yaml`,
+  `.github/workflows/ci.yml`, `.claude/settings.json`, ce README,
+  `CLAUDE.md`) ;
+- mettre le nom du projet dans `pyproject.toml`, puis `uv lock` (sur le
+  serveur : `docker compose run --rm agent-<nom-du-projet> uv lock`) ;
+- remplir la section « Le projet » de `CLAUDE.md`.
 
 ## Le circuit de travail
 
-Deux branches, sur le modèle du dépôt de production :
+Deux branches, sur le modèle du dépôt de production. Leurs protections sont
+posées par Florian sur **ce dépôt** :
 
 | Branche | Rôle | Règles |
 |---|---|---|
 | `staging` | branche de travail | push direct autorisé ; ni force-push, ni suppression |
-| `main` | version validée, celle qui est importée en production | mise à jour **uniquement** par une PR `staging` → `main`, approuvée par Florian |
+| `main` | version validée, celle qui est importée en production | PR `staging` → `main` obligatoire, approuvée par Florian (code owner) après le dernier push, fusionnée en merge commit ; ni force-push, ni suppression |
 
 ```
 push sur staging  →  PR staging → main  →  approbation de Florian
@@ -71,7 +69,45 @@ push sur staging  →  PR staging → main  →  approbation de Florian
 La PR `staging` → `main` se fusionne en **merge commit**, jamais en squash ni
 en rebase : ces deux modes réécrivent les commits, et `staging` et `main`
 divergeraient à chaque fusion. Seul Florian approuve et fusionne ; le fichier
-`.github/CODEOWNERS` le désigne comme relecteur obligatoire.
+`.github/CODEOWNERS` le désigne comme relecteur obligatoire. Vous avez le
+rôle **Write** sur le dépôt : vous ne pouvez ni modifier ses réglages ni ses
+protections, et c'est voulu.
+
+### Projet à deux
+
+Chacun travaille sur **sa branche personnelle**, puis l'intègre dans
+`staging` (voir « Branches de travail personnelles » dans le `CONTRIBUTING.md`
+de l'organisation).
+
+```bash
+git switch staging
+git pull --ff-only
+git switch -c <branche-personnelle-en-francais>
+```
+
+Avant d'intégrer, mettez votre branche à jour avec ce que l'autre a déjà
+intégré, et relancez les tests :
+
+```bash
+git fetch origin
+git rebase origin/staging
+uv run pytest     # sur le serveur : docker compose run --rm agent-<nom-du-projet> pytest
+```
+
+Puis intégrez dans `staging` et poussez :
+
+```bash
+git switch staging
+git pull --ff-only
+git merge --ff-only <branche-personnelle-en-francais>
+git push origin staging
+```
+
+Si `git merge --ff-only` ou `git push` refuse, c'est que l'autre a intégré
+entre-temps : revenez sur votre branche et recommencez à `git fetch origin`.
+Une branche personnelle déjà poussée puis rebasée se repousse avec
+`git push --force-with-lease` — sur votre branche personnelle uniquement,
+jamais sur `staging` ni `main`.
 
 ---
 
@@ -306,6 +342,28 @@ import est noté dans ce README :
 
 Un correctif fait directement en production est reporté ici par une PR, pour
 que les deux versions ne divergent pas.
+
+---
+
+## Pour le responsable
+
+Les alternants ne créent pas de dépôt : c'est fait ici, une fois par projet.
+
+```bash
+gh repo create Sandbox-IA-FHU/<nom-du-projet> --template Sandbox-IA-FHU/agentic-model --public
+gh api -X PUT repos/Sandbox-IA-FHU/<nom-du-projet>/collaborators/<compte-github> -f permission=push
+git clone https://github.com/Sandbox-IA-FHU/<nom-du-projet>.git
+cd <nom-du-projet>
+git switch -c staging
+git push -u origin staging
+```
+
+- `permission=push` correspond au rôle **Write**. Jamais Admin : un
+  administrateur de dépôt peut supprimer les protections de son dépôt.
+- « Use this template » ne copie que `main` : `staging` se crée ici.
+- Les protections se posent **sur chaque dépôt** (Settings → Rules →
+  Rulesets), selon le tableau du « Circuit de travail ». En plan gratuit,
+  seules les règles de dépôt sont appliquées, pas celles d'organisation.
 
 ---
 

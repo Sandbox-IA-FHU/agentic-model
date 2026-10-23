@@ -56,8 +56,14 @@ horaire inhabituel : demander avant de supposer que le serveur est allumé.
 
 ## Périmètre et Git
 
+- Le dépôt est créé par Florian, qui y pose les protections et crée
+  `staging`. Tu ne crées pas de dépôt et tu ne touches ni aux réglages ni aux
+  protections du dépôt (rôle Write).
 - Travail sur la branche **`staging`** : commits et push directs, jamais de
   force-push, jamais de suppression de branche.
+- Projet à deux : chacun sur sa branche personnelle, mise à jour par
+  `git rebase origin/staging` avant d'être intégrée dans `staging` (voir le
+  README, « Projet à deux »).
 - `main` ne reçoit que des PR `staging` → `main`, **approuvées et fusionnées
   par Florian**, en merge commit. Ne jamais fusionner toi-même.
 - Pousser au fil de l'eau, et toujours avant de s'arrêter un vendredi.
@@ -88,19 +94,18 @@ qui rend l'agent plus capable mais moins lisible est une régression.
 
 ## Où en est-on
 
-- 2026-10-23 — modèle branché sur le LLM local (client compatible OpenAI,
-  réflexion `low` par défaut), voie conteneur ajoutée. Aucun run de référence
-  sur ce modèle.
-
-## En suspens (décision de Florian)
-
-- Réflexion `off` ou `low` pour un agent : à trancher sur mesure, avec deux
-  runs qui ne diffèrent que par `--reflexion`.
+- 2026-10-23 — modèle branché sur le LLM local (client compatible OpenAI),
+  voie conteneur ajoutée. Réflexion `low` par défaut (décidé le 22/10 sur
+  comparatif). Aucun run de référence sur ce modèle.
 
 ## À travailler
 
 - Run de référence complet sur le jeu d'évaluation, une fois `--limite 3`
   passé sans erreur.
+- Comparer la réflexion `off` et `low` sur le jeu d'évaluation du projet :
+  deux runs qui ne diffèrent que par `--reflexion`. Garder `low` sauf si
+  `off` fait au moins aussi bien sur la réussite **et** sur
+  `outil_interdit_appele` (qui doit rester à 0).
 
 ---
 
